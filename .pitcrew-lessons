@@ -11,3 +11,6 @@ LESSON: Git CRLF config causes merge failures on Windows → Always run `git con
 LESSON: Mechanic output wrapped in markdown fences breaks file writes → Strip ```language and ``` lines from model output before writing to file.
 
 LESSON: start.js using ES module import syntax but package.json missing "type": "module" → Either use require() syntax or ensure package.json has "type": "module".
+
+LESSON: TypeScript with node: imports needs types: ['node'] in tsconfig.json and @types/node in devDependencies → Always include both when creating a Node.js TypeScript MCP server.
+
