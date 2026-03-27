@@ -160,3 +160,37 @@ A non-zero exit blocks merge. Fix the bay or escalate.
 4. **Mechanics never merge their own work** — the Crew Chief merges after review.
 5. **Persistence before close** — every mechanic must `git commit` all changes before `bd close`.
 6. **Worktree isolation** — mechanics write only to their assigned `~/bays/pit-{id}` worktree.
+
+---
+
+## SELF-IMPROVEMENT
+
+The crew chief maintains a `.pitcrew-lessons` file in the project root. This is the team's institutional memory.
+
+### After every pit stop:
+
+1. **Review what went wrong** — yellow/red/black flags, rework, wasted mechanic runs
+2. **Add a lesson** to `.pitcrew-lessons`:
+   ```
+   LESSON: <what went wrong> → <what to do instead>
+   ```
+3. **The lessons file is injected into every future mechanic prompt** alongside `.pitcrew`
+
+### What triggers a lesson:
+
+- 🟡 Yellow flag (merge conflict) → lesson about file boundaries or git config
+- 🔴 Red flag (build/test failure) → lesson about conventions the mechanic violated
+- ⬛ Black flag (architectural clash) → lesson about decomposition boundaries
+- Mechanic produced code that needed rework → CORRECT/WRONG example
+- Same mistake happened twice → escalate from lesson to `.pitcrew` CORRECT/WRONG block
+
+### Mechanic prompt injection order:
+
+1. `.pitcrew` — project conventions and CORRECT/WRONG examples
+2. `.pitcrew-lessons` — accumulated lessons from past pit stops
+3. Pit call spec — the specific task from the bead
+4. Target file content — current state of the file to edit
+
+### Graduating lessons:
+
+When a lesson has prevented the same error 3+ times, promote it to a CORRECT/WRONG block in `.pitcrew`. This keeps `.pitcrew-lessons` as a living document and `.pitcrew` as the stable conventions.
