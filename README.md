@@ -23,7 +23,51 @@ Pitcrew does the same with code. Your frontier model is the crew chief — it un
 
 **Cost**: ~$0.002 per mechanic. A 10-call pit stop costs ~$0.02.
 
-## Two Mechanic Modes
+## Two Environments
+
+Pitcrew runs in two environments — choose the one that matches your setup, or use both.
+
+### CLI Environment (Claude Code / PAI / terminal)
+
+Shell scripts that dispatch mechanics via direct API calls or Aider. Orchestrated by your frontier model in an interactive session.
+
+```
+You (in Claude Code / terminal)
+  → tools/mechanic-lite.sh    (3-6s, curl + jq)
+  → tools/mechanic.sh         (30s, via Aider)
+  → tools/pitstop.sh          (parallel dispatch + live monitor)
+  → tools/release.sh          (merge with conflict escalation)
+```
+
+**Best for:** Claude Code users, PAI users, CI pipelines, anyone comfortable in a terminal.
+
+### GitHub Copilot Environment (MCP server)
+
+An MCP server that exposes bay management and beads integration as tools for the GitHub Copilot CLI agent. The crew chief agent instructions live in `.github/agents/pitcrew.md`.
+
+```
+Copilot CLI (crew chief)
+  → MCP tools: create_bay, list_bays, release_bay, create_bead, list_beads, close_bead
+  → Background tasks: dispatches mechanics via Copilot's task(mode="background")
+```
+
+**Best for:** GitHub Copilot CLI users, VS Code with Copilot agent mode.
+
+### Key Differences
+
+| | CLI | Copilot |
+|---|---|---|
+| Crew chief | Your frontier model (interactive) | Copilot CLI agent (`.github/agents/`) |
+| Mechanic dispatch | Shell scripts (bash) | MCP tools + background tasks |
+| Mechanic models | MiniMax M2.5 via API / Aider | Claude Haiku/Sonnet via Copilot |
+| Bay prefix | `~/bays/{bead-id}` | `~/bays/pit-{bead-id}` |
+| Project context | `.pitcrew` file | `.pitcrew` file (shared) |
+| Verification | `.pitcrew-verify` script | `.pitcrew-verify` script (shared) |
+| Lessons | — | `.pitcrew-lessons` (auto-appended to prompts) |
+
+Both environments share the same Beads coordination, `.pitcrew` context, and `.pitcrew-verify` gate. You can use them interchangeably on the same project.
+
+## Mechanic Modes (CLI)
 
 ### `mechanic-lite.sh` (recommended)
 Direct API call via curl. No dependencies beyond curl + jq + git + bd. Runs anywhere — containers, CI, your laptop. **3-6 seconds per mechanic.**
@@ -33,11 +77,17 @@ Uses [Aider](https://aider.chat) for the coding agent. More capable (repo-map, m
 
 ## Prerequisites
 
+**CLI environment:**
 - [Beads](https://github.com/steveyegge/beads) (`bd` CLI) — work coordination
 - Git 2.25+ (worktree support)
 - curl + jq (for mechanic-lite)
 - [Aider](https://aider.chat) (optional, for mechanic.sh)
 - A model API key (MiniMax, OpenRouter, DeepSeek, or local via Ollama)
+
+**Copilot environment:**
+- [GitHub Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli) with agent mode
+- Node.js 18+ (for MCP server)
+- [Beads](https://github.com/steveyegge/beads) (`bd` CLI)
 
 ## Quick Start
 
@@ -113,9 +163,9 @@ API responses are typed and returned directly:
   CORRECT: const data = await api.get<{ items: Item[] }>('/items'); data.items
   WRONG:   response.data.items
 
-Theme colours:
-  CORRECT: colors.chassis[400], colors.red[500], '#fff'
-  WRONG:   colors.primary, colors.error, 'chassis-600'
+Theme colours — use the palette object, not string names:
+  CORRECT: colors.brand[400], colors.red[500], '#fff'
+  WRONG:   colors.primary, colors.error, 'brand-600'
 ```
 
 Without these examples, mechanics consistently make the same systematic errors. With them: zero errors.
@@ -225,6 +275,53 @@ Building a mobile app (11 React Native screens):
 
 The VehicleDetail experiment: same 400-line screen built by both crew chief (Opus) and mechanic (MiniMax M2.5). Feature parity. Zero errors from the mechanic. Cost: $0.008 vs $0 (Max sub). The assumption that complex screens need a frontier model was wrong.
 
+## Copilot Setup
+
+### 1. Install the MCP server
+
+```bash
+cd mcp && npm install && npm run build
+```
+
+### 2. Configure Copilot
+
+The `.mcp.json` in `mcp/` registers the Pitcrew MCP server. Copy it to your project root or Copilot config directory.
+
+### 3. Agent instructions
+
+The crew chief agent instructions are at `.github/agents/pitcrew.md`. Copilot loads these automatically when you invoke the Pitcrew agent.
+
+### 4. Model hierarchy (Copilot)
+
+| Role | Model | Responsibility |
+|------|-------|----------------|
+| Crew Chief | `claude-opus-4.6` | Decompose, review, resolve conflicts, merge |
+| Mechanic | `claude-haiku-4.5` | Bounded single-file edits (background tasks) |
+| Senior Mechanic | `claude-sonnet-4.6` | Complex multi-file tasks (≤5 files) |
+| Investigator | `claude-haiku-4.5` | Read-only parallel analysis |
+
+### MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `create_bay` | Create a git worktree (bay) for a pit call |
+| `list_bays` | List all active bays with status |
+| `release_bay` | Merge bay to main and clean up |
+| `create_bead` | Create a pit call (bead) in the tracker |
+| `list_beads` | List open/in-progress beads |
+| `close_bead` | Mark a bead as completed |
+
+## Self-Improvement (.pitcrew-lessons)
+
+The `.pitcrew-lessons` file captures mistakes encountered during pit stops. Each lesson is automatically appended to mechanic prompts to prevent recurrence.
+
+```
+LESSON: Git CRLF config causes merge failures on Windows → Always run git config core.autocrlf false in the worktree.
+LESSON: Mechanic output wrapped in markdown fences breaks file writes → Strip ``` lines from model output before writing.
+```
+
+The crew chief adds lessons when a pit stop encounters a new class of error. Future mechanics benefit automatically.
+
 ## PAI Integration
 
 Works as a skill in [PAI](https://github.com/danielmiessler/Personal_AI_Infrastructure):
@@ -232,6 +329,47 @@ Works as a skill in [PAI](https://github.com/danielmiessler/Personal_AI_Infrastr
 ```bash
 cp -r skill/ ~/.claude/skills/Pitcrew/
 ```
+
+## Project Structure
+
+```
+pitcrew/
+├── tools/                        ← CLI environment
+│   ├── mechanic-lite.sh          ← Direct API mechanic (3-6s)
+│   ├── mechanic.sh               ← Aider-based mechanic (30s)
+│   ├── pitstop.sh                ← Full pit stop with live output
+│   ├── release.sh                ← Merge bay to main
+│   └── timing.sh                 ← Status dashboard
+│
+├── mcp/                          ← Copilot environment
+│   ├── src/index.ts              ← MCP server (bay + beads tools)
+│   ├── .mcp.json                 ← Copilot MCP config
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── start.js                  ← MCP server entry point
+│
+├── .github/agents/
+│   └── pitcrew.md                ← Copilot crew chief instructions
+│
+├── skill/                        ← PAI skill package
+│   ├── SKILL.md                  ← Skill definition
+│   └── Tools/                    ← CLI tools (mirrored)
+│
+├── examples/
+│   └── parallel-pitstop.md       ← Walkthrough example
+│
+├── .pitcrew-lessons              ← Self-improvement lessons
+└── README.md
+```
+
+### Shared files (used by both environments)
+
+These live in **your project repo**, not in pitcrew:
+
+| File | Purpose | Used by |
+|------|---------|---------|
+| `.pitcrew` | Project context injected into mechanic prompts | CLI + Copilot |
+| `.pitcrew-verify` | Pre-merge verification script | CLI + Copilot |
 
 ## Inspired By
 
