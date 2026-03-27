@@ -6,3 +6,7 @@ bays/
 .dolt/
 *.db
 .beads-credential-key
+
+# MCP server build artifacts
+mcp/node_modules/
+mcp/dist/
