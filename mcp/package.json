@@ -1,0 +1,16 @@
+{
+  "name": "pitcrew-mcp",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "MCP server for pitcrew",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  }
+}
