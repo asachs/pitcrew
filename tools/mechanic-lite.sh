@@ -63,13 +63,21 @@ if [ -n "$FILES" ]; then
   fi
 fi
 
-# ── Load project context ──────────────────────────────────────────
+# ── Load project context + lessons ────────────────────────────────
 PITCREW_CONTEXT=""
 if [ -f "$REPO_PATH/.pitcrew" ]; then
   PITCREW_CONTEXT=$(cat "$REPO_PATH/.pitcrew")
 fi
 
+PITCREW_LESSONS=""
+if [ -f "$REPO_PATH/.pitcrew-lessons" ]; then
+  PITCREW_LESSONS=$(grep "^LESSON:" "$REPO_PATH/.pitcrew-lessons")
+fi
+
 SYSTEM="${PITCREW_CONTEXT:-You are a coding agent. Complete only the task assigned to you.}
+${PITCREW_LESSONS:+
+LESSONS FROM PREVIOUS PIT STOPS (avoid these mistakes):
+$PITCREW_LESSONS}
 
 RULES:
 - ONLY modify the file specified. Do not touch other files.
