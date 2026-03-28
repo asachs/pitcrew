@@ -74,7 +74,7 @@ Copilot CLI (crew chief)
 | Bay prefix | `~/bays/{bead-id}` | `~/bays/pit-{bead-id}` |
 | Project context | `.pitcrew` file | `.pitcrew` file (shared) |
 | Verification | `.pitcrew-verify` script | `.pitcrew-verify` script (shared) |
-| Lessons | `.pitcrew-lessons` (auto-injected) | `.pitcrew-lessons` (auto-appended) |
+| Lessons | `.pitcrew-lessons` (injected into mechanic prompts) | `.pitcrew-lessons` (injected into mechanic prompts) |
 | Add lesson | `tools/lesson.sh` | Crew chief appends directly |
 
 Both environments share the same Beads coordination, `.pitcrew` context, `.pitcrew-verify` gate, and `.pitcrew-lessons` feedback loop. You can use them interchangeably on the same project.
