@@ -109,9 +109,20 @@ Run the project's full build and test suite from `main` before declaring victory
 
 ---
 
+## GLOBAL OPERATION
+
+Pitcrew works on any git repo without per-repo configuration:
+
+- **Auto-context**: Mechanics detect project context in priority order: `.pitcrew` > `CLAUDE.md` (first 200 lines) > auto-detected language (Nix, JS/TS, Rust, Go, Clojure, Python)
+- **Auto-init**: Beads DB initializes automatically on first use if no `.beads/` exists
+- **Global lessons**: Lessons in `~/.claude/pitcrew-lessons` apply to all repos alongside repo-local `.pitcrew-lessons`
+- **No setup required**: Just run `pitstop-auto.sh <repo> "task"` or dispatch mechanics manually
+
+---
+
 ## PITCREW FILE (`.pitcrew`)
 
-Load `.pitcrew` from the project root at the start of every session. It contains project-specific conventions, file ownership, test commands, and linting rules.
+Load `.pitcrew` from the project root at the start of every session (if it exists). It contains project-specific conventions, file ownership, test commands, and linting rules. If absent, context is auto-detected from CLAUDE.md or repo structure.
 
 **CORRECT** — mechanic reads `.pitcrew` first, then acts:
 ```

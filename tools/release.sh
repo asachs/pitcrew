@@ -10,9 +10,10 @@ set -euo pipefail
 BEAD_ID="${1:?Usage: release.sh <bead-id> <repo-path>}"
 REPO_PATH="${2:?Usage: release.sh <bead-id> <repo-path>}"
 
-BD="$HOME/go/bin/bd"
-BEADS_DIR="$HOME/beads"
-WORKTREE="$HOME/worktrees/$BEAD_ID"
+BD="${PITCREW_BD:-$(command -v bd 2>/dev/null || echo "$HOME/go/bin/bd")}"
+if [ -d "$REPO_PATH/.beads" ]; then BEADS_DIR="$REPO_PATH"; else BEADS_DIR="${PITCREW_LANE:-$REPO_PATH}"; fi
+BAYS_DIR="${PITCREW_BAYS:-$HOME/bays}"
+WORKTREE="$BAYS_DIR/$BEAD_ID"
 BRANCH="worker/$BEAD_ID"
 
 echo "═══ Release: $BEAD_ID ═══"
@@ -61,16 +62,22 @@ if [ -f "$REPO_PATH/.pitcrew-verify" ]; then
   fi
 fi
 
-# ── Tier 0: Try clean merge ────────────────────────────────────────
+# ── Tier 0: Try clean merge (fast-forward or no-conflict) ─────────
 cd "$REPO_PATH"
 git checkout main 2>/dev/null
 
-if git merge --no-commit "$BRANCH" 2>/dev/null; then
-  # Clean merge!
-  git commit -m "Merge $BRANCH: $(git log -1 --format='%s' "$BRANCH")"
-  echo "✓ Green flag: clean release"
+# Try fast-forward first (cleanest path)
+if git merge --ff-only "$BRANCH" 2>/dev/null; then
+  echo "✓ Green flag: fast-forward merge"
+  git worktree remove "$WORKTREE" --force 2>/dev/null || true
+  git branch -D "$BRANCH" 2>/dev/null || true
+  exit 0
+fi
 
-  # Cleanup
+# Try regular merge
+if git merge --no-commit "$BRANCH" 2>/dev/null; then
+  git commit -m "Merge $BRANCH: $(git log -1 --format='%s' "$BRANCH")"
+  echo "✓ Green flag: clean merge"
   git worktree remove "$WORKTREE" --force 2>/dev/null || true
   git branch -D "$BRANCH" 2>/dev/null || true
   exit 0

@@ -14,8 +14,8 @@ REPO_PATH="${2:?Usage: mechanic.sh <bead-id> <repo-path> [--model MODEL] [--time
 MODEL="${3:-openai/MiniMax-M2.5}"
 TIMEOUT="${4:-600}"
 
-BD="${PITCREW_BD:-bd}"
-BEADS_DIR="${PITCREW_LANE:-$HOME/pitlane}"
+BD="${PITCREW_BD:-$(command -v bd 2>/dev/null || echo "$HOME/go/bin/bd")}"
+if [ -d "$REPO_PATH/.beads" ]; then BEADS_DIR="$REPO_PATH"; else BEADS_DIR="${PITCREW_LANE:-$REPO_PATH}"; fi
 WORKTREE_DIR="${PITCREW_BAYS:-$HOME/bays}"
 
 # ── Extract bead spec ──────────────────────────────────────────────
@@ -54,13 +54,50 @@ cd "$BEADS_DIR"
 $BD update "$BEAD_ID" --status in_progress 2>/dev/null || true
 
 # ── Build the prompt ───────────────────────────────────────────────
-# Load project-specific context from .pitcrew file in the repo, or use generic default
+# Load project context: .pitcrew > CLAUDE.md > auto-detect
 PITCREW_CONTEXT=""
 if [ -f "$REPO_PATH/.pitcrew" ]; then
   PITCREW_CONTEXT=$(cat "$REPO_PATH/.pitcrew")
+elif [ -f "$REPO_PATH/CLAUDE.md" ]; then
+  PITCREW_CONTEXT="Project context (from CLAUDE.md):
+$(head -200 "$REPO_PATH/CLAUDE.md")"
+else
+  LANG_HINT=""
+  if ls "$REPO_PATH"/*.nix >/dev/null 2>&1 || ls "$REPO_PATH"/nixos/ >/dev/null 2>&1; then
+    LANG_HINT="This is a NixOS/Nix project."
+  elif [ -f "$REPO_PATH/package.json" ]; then
+    LANG_HINT="This is a JavaScript/TypeScript project."
+  elif [ -f "$REPO_PATH/Cargo.toml" ]; then
+    LANG_HINT="This is a Rust project."
+  elif [ -f "$REPO_PATH/go.mod" ]; then
+    LANG_HINT="This is a Go project."
+  elif [ -f "$REPO_PATH/deps.edn" ] || [ -f "$REPO_PATH/project.clj" ]; then
+    LANG_HINT="This is a Clojure project."
+  elif [ -f "$REPO_PATH/pyproject.toml" ] || [ -f "$REPO_PATH/setup.py" ]; then
+    LANG_HINT="This is a Python project."
+  fi
+  PITCREW_CONTEXT="You are a coding agent working on a project. ${LANG_HINT}
+Match existing code conventions exactly."
 fi
 
-SYSTEM_PREFIX="${PITCREW_CONTEXT:-You are a coding agent. Complete only the task assigned to you.}
+# Load lessons: repo-local first, then global
+PITCREW_LESSONS=""
+if [ -f "$REPO_PATH/.pitcrew-lessons" ]; then
+  PITCREW_LESSONS=$(grep "^LESSON:" "$REPO_PATH/.pitcrew-lessons" 2>/dev/null || true)
+fi
+GLOBAL_LESSONS="${PITCREW_GLOBAL_LESSONS:-$HOME/.claude/pitcrew-lessons}"
+if [ -f "$GLOBAL_LESSONS" ]; then
+  GLOBAL_L=$(grep "^LESSON:" "$GLOBAL_LESSONS" 2>/dev/null || true)
+  if [ -n "$GLOBAL_L" ]; then
+    PITCREW_LESSONS="${PITCREW_LESSONS}
+${GLOBAL_L}"
+  fi
+fi
+
+SYSTEM_PREFIX="${PITCREW_CONTEXT}
+${PITCREW_LESSONS:+
+LESSONS FROM PREVIOUS PIT STOPS (avoid these mistakes):
+$PITCREW_LESSONS}
 
 RULES — follow these exactly:
 - ONLY modify files listed in the task. Do not touch other files.

@@ -22,6 +22,14 @@ BAYS="${PITCREW_BAYS:-$HOME/bays}"
 MODEL="${PITCREW_MODEL:-openai/MiniMax-M2.5}"
 TIMEOUT="${PITCREW_TIMEOUT:-300}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -d "$REPO_PATH/.beads" ]; then BEADS_DIR="$REPO_PATH"; else BEADS_DIR="${PITCREW_LANE:-$REPO_PATH}"; fi
+
+# Auto-init beads DB if not present
+cd "$REPO_PATH"
+if ! $BD list --status open --format ids >/dev/null 2>&1; then
+  echo "  Initializing beads database..."
+  $BD init --quiet 2>/dev/null || true
+fi
 
 # Colours
 RED='\033[0;31m'
@@ -51,7 +59,7 @@ divider
 printf "\n  ${BOLD}PIT CALLS${RESET}\n\n"
 declare -A BEAD_TITLES
 for BEAD in "${BEADS[@]}"; do
-  TITLE=$(cd "${PITCREW_LANE:-$HOME/pitlane}" && $BD show "$BEAD" --format json 2>/dev/null | jq -r '.[0].title // .title // "?"' 2>/dev/null || echo "?")
+  TITLE=$(cd "$BEADS_DIR" && $BD show "$BEAD" --format json 2>/dev/null | jq -r '.[0].title // .title // "?"' 2>/dev/null || echo "?")
   BEAD_TITLES[$BEAD]="$TITLE"
   printf "  ${CYAN}○${RESET}  ${BOLD}%s${RESET}  %s\n" "$BEAD" "$TITLE"
 done
@@ -131,8 +139,8 @@ for BEAD in "${BEADS[@]}"; do
     continue
   fi
 
-  "$SCRIPT_DIR/release.sh" "$BEAD" "$REPO_PATH" > "/tmp/pitcrew-release-$BEAD.log" 2>&1
-  EXIT=$?
+  EXIT=0
+  "$SCRIPT_DIR/release.sh" "$BEAD" "$REPO_PATH" > "/tmp/pitcrew-release-$BEAD.log" 2>&1 || EXIT=$?
 
   if [ $EXIT -eq 0 ]; then
     FLAG=$(grep -o "Green flag\|Yellow flag" "/tmp/pitcrew-release-$BEAD.log" || echo "merged")

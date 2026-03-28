@@ -8,10 +8,15 @@
 
 set -euo pipefail
 
-REPO_PATH="${1:?Usage: lesson.sh <repo-path> \"lesson text\"}"
-LESSON="${2:?Usage: lesson.sh <repo-path> \"lesson text\"}"
-
-LESSONS_FILE="$REPO_PATH/.pitcrew-lessons"
+# If --global flag, use global lessons file
+if [ "${1:-}" = "--global" ]; then
+  LESSONS_FILE="${PITCREW_GLOBAL_LESSONS:-$HOME/.claude/pitcrew-lessons}"
+  LESSON="${2:?Usage: lesson.sh --global \"lesson text\"}"
+else
+  REPO_PATH="${1:?Usage: lesson.sh <repo-path> \"lesson text\"}"
+  LESSON="${2:?Usage: lesson.sh <repo-path> \"lesson text\"}"
+  LESSONS_FILE="$REPO_PATH/.pitcrew-lessons"
+fi
 
 # Create the file if it doesn't exist
 if [ ! -f "$LESSONS_FILE" ]; then

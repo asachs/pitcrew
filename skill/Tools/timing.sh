@@ -5,8 +5,9 @@
 
 set -euo pipefail
 
-BD="$HOME/go/bin/bd"
-BEADS_DIR="$HOME/beads"
+BD="${PITCREW_BD:-$(command -v bd 2>/dev/null || echo "$HOME/go/bin/bd")}"
+BEADS_DIR="${PITCREW_LANE:-$HOME/pitlane}"
+BAYS_DIR="${PITCREW_BAYS:-$HOME/bays}"
 VERBOSE="${1:-}"
 
 cd "$BEADS_DIR"
@@ -27,8 +28,8 @@ echo ""
 
 # Active worktrees
 echo "  Worktrees:"
-if [ -d "$HOME/worktrees" ]; then
-  for wt in "$HOME/worktrees"/beads-*/ 2>/dev/null; do
+if [ -d "$BAYS_DIR" ]; then
+  for wt in "$BAYS_DIR"/*/; do
     [ -d "$wt" ] || continue
     BEAD=$(basename "$wt")
     BRANCH=$(cd "$wt" && git branch --show-current 2>/dev/null || echo "?")
@@ -45,7 +46,7 @@ echo "  Token Usage (from worker logs):"
 TOTAL_SENT=0
 TOTAL_RECV=0
 TOTAL_COST=0
-for log in /tmp/worker-beads-*.log 2>/dev/null; do
+for log in /tmp/worker-beads-*.log /tmp/pitcrew-*.log; do
   [ -f "$log" ] || continue
   BEAD=$(basename "$log" .log | sed 's/worker-//')
   TOKENS=$(grep -o "Tokens: [0-9.k]*k* sent, [0-9.k]*k* received" "$log" 2>/dev/null | tail -1 || true)

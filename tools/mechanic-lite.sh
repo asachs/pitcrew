@@ -14,7 +14,8 @@ MODEL="${RAW_MODEL##*/}"
 TIMEOUT="${4:-120}"
 
 BD="${PITCREW_BD:-$(command -v bd 2>/dev/null || echo "$HOME/go/bin/bd")}"
-BEADS_DIR="${PITCREW_LANE:-$HOME/pitlane}"
+# Beads DB: prefer repo path if it has .beads/, else try PITCREW_LANE
+if [ -d "$REPO_PATH/.beads" ]; then BEADS_DIR="$REPO_PATH"; else BEADS_DIR="${PITCREW_LANE:-$REPO_PATH}"; fi
 WORKTREE_DIR="${PITCREW_BAYS:-$HOME/bays}"
 API_BASE="${OPENAI_API_BASE:-https://api.minimax.io/v1}"
 API_KEY="${MINIMAX_API_KEY:-${OPENAI_API_KEY:-}}"
@@ -67,11 +68,42 @@ fi
 PITCREW_CONTEXT=""
 if [ -f "$REPO_PATH/.pitcrew" ]; then
   PITCREW_CONTEXT=$(cat "$REPO_PATH/.pitcrew")
+elif [ -f "$REPO_PATH/CLAUDE.md" ]; then
+  # Auto-generate context from CLAUDE.md
+  PITCREW_CONTEXT="Project context (from CLAUDE.md):
+$(head -200 "$REPO_PATH/CLAUDE.md")"
+else
+  # Auto-detect from repo structure
+  LANG_HINT=""
+  if ls "$REPO_PATH"/*.nix >/dev/null 2>&1 || ls "$REPO_PATH"/nixos/ >/dev/null 2>&1; then
+    LANG_HINT="This is a NixOS/Nix project."
+  elif [ -f "$REPO_PATH/package.json" ]; then
+    LANG_HINT="This is a JavaScript/TypeScript project."
+  elif [ -f "$REPO_PATH/Cargo.toml" ]; then
+    LANG_HINT="This is a Rust project."
+  elif [ -f "$REPO_PATH/go.mod" ]; then
+    LANG_HINT="This is a Go project."
+  elif [ -f "$REPO_PATH/deps.edn" ] || [ -f "$REPO_PATH/project.clj" ]; then
+    LANG_HINT="This is a Clojure project."
+  elif [ -f "$REPO_PATH/pyproject.toml" ] || [ -f "$REPO_PATH/setup.py" ]; then
+    LANG_HINT="This is a Python project."
+  fi
+  PITCREW_CONTEXT="You are a coding agent working on a project. ${LANG_HINT}
+Match existing code conventions exactly."
 fi
 
+# Load lessons: repo-local first, then global
 PITCREW_LESSONS=""
 if [ -f "$REPO_PATH/.pitcrew-lessons" ]; then
-  PITCREW_LESSONS=$(grep "^LESSON:" "$REPO_PATH/.pitcrew-lessons")
+  PITCREW_LESSONS=$(grep "^LESSON:" "$REPO_PATH/.pitcrew-lessons" 2>/dev/null || true)
+fi
+GLOBAL_LESSONS="${PITCREW_GLOBAL_LESSONS:-$HOME/.claude/pitcrew-lessons}"
+if [ -f "$GLOBAL_LESSONS" ]; then
+  GLOBAL_L=$(grep "^LESSON:" "$GLOBAL_LESSONS" 2>/dev/null || true)
+  if [ -n "$GLOBAL_L" ]; then
+    PITCREW_LESSONS="${PITCREW_LESSONS}
+${GLOBAL_L}"
+  fi
 fi
 
 SYSTEM="${PITCREW_CONTEXT:-You are a coding agent. Complete only the task assigned to you.}
@@ -139,7 +171,10 @@ if echo "$CONTENT" | head -1 | grep -q "^BLOCKED:"; then
   exit 1
 fi
 
-# ── Strip markdown fences if model wrapped the output ──────────────
+# ── Strip model artifacts from output ─────────────────────────────
+# Remove <think>...</think> blocks (MiniMax M2.5 reasoning traces)
+CONTENT=$(echo "$CONTENT" | sed '/<think>/,/<\/think>/d')
+# Remove markdown fences
 CONTENT=$(echo "$CONTENT" | sed '/^```[a-z]*$/d' | sed '/^```$/d')
 
 # ── Write the file ─────────────────────────────────────────────────

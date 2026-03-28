@@ -23,6 +23,16 @@ Pitcrew does the same with code. Your frontier model is the crew chief — it un
 
 **Cost**: ~$0.002 per mechanic. A 10-call pit stop costs ~$0.02.
 
+## Global Operation
+
+Pitcrew works on any git repo without per-repo configuration:
+
+- **Auto-init**: Beads DB initializes automatically on first use (`bd init` runs if no `.beads/` exists)
+- **Auto-context**: Mechanics detect project context in priority order: `.pitcrew` > `CLAUDE.md` (first 200 lines) > auto-detected language (Nix, JS/TS, Rust, Go, Clojure, Python)
+- **Global lessons**: `~/.claude/pitcrew-lessons` applies to all repos alongside repo-local `.pitcrew-lessons`
+- **Smart DB resolution**: Scripts prefer `.beads/` in the repo over `PITCREW_LANE` env var — no conflicts when working across multiple projects
+- **Think-tag stripping**: MiniMax M2.5 reasoning traces (`<think>...</think>`) are automatically stripped from output
+
 ## Two Environments
 
 Pitcrew runs in two environments — choose the one that matches your setup, or use both.
@@ -97,28 +107,28 @@ Uses [Aider](https://aider.chat) for the coding agent. More capable (repo-map, m
 git clone https://github.com/asachs/pitcrew
 cd pitcrew
 
-# 2. Set up the pit lane (Beads repo)
-mkdir -p ~/pitlane && cd ~/pitlane && bd init
+# 2. Set your API keys
+export MINIMAX_API_KEY="sk-..."          # for mechanics
+export ANTHROPIC_API_KEY="sk-ant-..."    # for pitstop-auto crew chief (optional)
 
-# 3. Set your mechanic's API key
-export MINIMAX_API_KEY="sk-..."
+# 3. One-command pit stop (auto-decomposes task into beads)
+./tools/pitstop-auto.sh ~/my-project "add try-catch error handling to all route files"
 
-# 4. Make a pit call
-cd ~/pitlane
-bd create \
-  --title "Add email field to user schema" \
-  --body "Edit src/schema.sql. Add email VARCHAR(255) NOT NULL to the users table." \
-  --label "file:src/schema.sql"
+# Or manually:
+# 4. Create beads
+cd ~/my-project
+bd init  # auto-runs on first use, but can be explicit
+bd create --title "Add error handling to users route" --label "file:src/routes/users.ts"
+bd create --title "Add error handling to posts route" --label "file:src/routes/posts.ts"
 
-# 5. Send a mechanic
-./tools/mechanic-lite.sh beads-abc ~/my-project
+# 5. Run pit stop
+./tools/pitstop.sh ~/my-project bead-id-1 bead-id-2
 
-# 6. Release back to track
-./tools/release.sh beads-abc ~/my-project
-
-# 7. Check the timing screen
+# 6. Check the timing screen
 ./tools/timing.sh
 ```
+
+**No per-repo setup needed.** Works on any git repo. Context auto-detected from `.pitcrew` > `CLAUDE.md` > language detection.
 
 ## Full Pit Stop (parallel)
 
@@ -189,11 +199,13 @@ Failed verification creates an escalation bead instead of merging broken code.
 
 | Tool | Role | Speed | Deps |
 |------|------|-------|------|
+| `tools/pitstop-auto.sh` | **One-command pit stop** — auto-decompose + dispatch | 20-60s | Anthropic API key |
 | `tools/mechanic-lite.sh` | Mechanic (direct API) | 3-6s | curl, jq, git |
 | `tools/mechanic.sh` | Mechanic (via Aider) | ~30s | Python, Aider |
-| `tools/pitstop.sh` | Full pit stop with live view | — | mechanic-lite |
+| `tools/pitstop.sh` | Pit stop with manual beads | — | mechanic-lite |
 | `tools/release.sh` | Merge bay to main | instant | git |
 | `tools/timing.sh` | Status dashboard | instant | bd |
+| `tools/lesson.sh` | Add lesson (repo-local or `--global`) | instant | — |
 
 ## Conflict Escalation (Radio Protocol)
 
@@ -232,10 +244,13 @@ export OPENAI_API_BASE="http://localhost:11434/v1"
 | `OPENROUTER_API_KEY` | OpenRouter key (alternative) |
 | `OPENAI_API_BASE` | Custom API base URL |
 | `PITCREW_BD` | Path to `bd` binary (default: autodetect) |
-| `PITCREW_LANE` | Beads repo path (default: `~/pitlane`) |
+| `PITCREW_LANE` | Beads repo path (default: repo path if `.beads/` exists, else `~/pitlane`) |
 | `PITCREW_BAYS` | Worktree directory (default: `~/bays`) |
 | `PITCREW_MODEL` | Default model (default: `MiniMax-M2.5`) |
 | `PITCREW_TIMEOUT` | Mechanic timeout in seconds (default: 300) |
+| `PITCREW_GLOBAL_LESSONS` | Global lessons file (default: `~/.claude/pitcrew-lessons`) |
+| `PITCREW_CHIEF_MODEL` | Model for pitstop-auto decomposition (default: `claude-sonnet-4-6`) |
+| `ANTHROPIC_API_KEY` | Required for `pitstop-auto.sh` crew chief decomposition |
 
 ## Prompt Engineering Lessons
 
@@ -336,10 +351,12 @@ cp -r skill/ ~/.claude/skills/Pitcrew/
 ```
 pitcrew/
 ├── tools/                        ← CLI environment
+│   ├── pitstop-auto.sh           ← One-command: describe task → dispatch → merge
 │   ├── mechanic-lite.sh          ← Direct API mechanic (3-6s)
 │   ├── mechanic.sh               ← Aider-based mechanic (30s)
-│   ├── pitstop.sh                ← Full pit stop with live output
+│   ├── pitstop.sh                ← Pit stop with manual beads
 │   ├── release.sh                ← Merge bay to main
+│   ├── lesson.sh                 ← Add lesson (--global or repo-local)
 │   └── timing.sh                 ← Status dashboard
 │
 ├── mcp/                          ← Copilot environment
