@@ -53,14 +53,44 @@ git worktree add "$WORKTREE" -b "$BRANCH" 2>/dev/null || {
 cd "$BEADS_DIR"
 $BD update "$BEAD_ID" --status in_progress 2>/dev/null || true
 
-# ── Read the target file ───────────────────────────────────────────
+# ── Read target file and context files ─────────────────────────────
+# First file: label = write target. Remaining = read-only context.
 cd "$WORKTREE"
 FILE_CONTENT=""
 TARGET_FILE=""
+CONTEXT_FILES=""
+CONTEXT_CONTENT=""
+TOTAL_CONTEXT_BYTES=0
+MAX_CONTEXT_BYTES=600000  # ~150K tokens at ~4 bytes/token, leaves headroom in 204K context
+
 if [ -n "$FILES" ]; then
   TARGET_FILE=$(echo "$FILES" | head -1)
   if [ -f "$TARGET_FILE" ]; then
     FILE_CONTENT=$(cat "$TARGET_FILE")
+    TOTAL_CONTEXT_BYTES=$(echo "$FILE_CONTENT" | wc -c)
+  fi
+
+  # Remaining files are read-only context
+  CONTEXT_FILES=$(echo "$FILES" | tail -n +2)
+  if [ -n "$CONTEXT_FILES" ]; then
+    while IFS= read -r ctx_file; do
+      [ -z "$ctx_file" ] && continue
+      if [ -f "$ctx_file" ]; then
+        CTX_SIZE=$(wc -c < "$ctx_file")
+        NEW_TOTAL=$((TOTAL_CONTEXT_BYTES + CTX_SIZE))
+        if [ "$NEW_TOTAL" -gt "$MAX_CONTEXT_BYTES" ]; then
+          echo "WARNING: Skipping context file $ctx_file (${CTX_SIZE} bytes would exceed ${MAX_CONTEXT_BYTES} byte limit)"
+          continue
+        fi
+        TOTAL_CONTEXT_BYTES=$NEW_TOTAL
+        CONTEXT_CONTENT="${CONTEXT_CONTENT}
+
+--- CONTEXT FILE: ${ctx_file} (read-only, do NOT modify) ---
+$(cat "$ctx_file")"
+      else
+        echo "WARNING: Context file $ctx_file not found, skipping"
+      fi
+    done <<< "$CONTEXT_FILES"
   fi
 fi
 
@@ -112,15 +142,16 @@ LESSONS FROM PREVIOUS PIT STOPS (avoid these mistakes):
 $PITCREW_LESSONS}
 
 RULES:
-- ONLY modify the file specified. Do not touch other files.
+- ONLY modify the TARGET FILE. Context files are read-only references.
 - Match existing code style exactly.
 - Do NOT refactor, rename, or reformat anything outside the task scope.
 - Do NOT add comments explaining what you changed.
 - If blocked, say BLOCKED: and explain why.
 
 OUTPUT FORMAT:
-Respond with ONLY the complete new file content. No markdown fences. No explanations.
-Start your response with the first line of the file."
+Respond with ONLY the complete new content of the TARGET FILE.
+No markdown fences. No explanations. No context file contents.
+Start your response with the first line of the target file."
 
 USER_MSG="TASK: $TITLE
 
@@ -140,17 +171,35 @@ else
 This is a NEW file. Create it from scratch."
 fi
 
+# Append read-only context files
+if [ -n "$CONTEXT_CONTENT" ]; then
+  CTX_COUNT=$(echo "$CONTEXT_FILES" | grep -c . || echo 0)
+  echo "Context: $CTX_COUNT file(s), $TOTAL_CONTEXT_BYTES bytes total"
+  USER_MSG="$USER_MSG
+$CONTEXT_CONTENT"
+fi
+
 # ── Call model API ─────────────────────────────────────────────────
 echo "Calling $MODEL..."
+
+# Build request JSON via temp files (avoids "Argument list too long" for large context)
+TMPDIR_REQ=$(mktemp -d)
+cat <<< "$SYSTEM" > "$TMPDIR_REQ/system.txt"
+cat <<< "$USER_MSG" > "$TMPDIR_REQ/user.txt"
+
+jq -n \
+  --arg model "$MODEL" \
+  --rawfile system "$TMPDIR_REQ/system.txt" \
+  --rawfile user "$TMPDIR_REQ/user.txt" \
+  '{model: $model, messages: [{role: "system", content: $system}, {role: "user", content: $user}], max_tokens: 16384}' \
+  > "$TMPDIR_REQ/request.json"
 
 RESPONSE=$(curl -s --max-time "$TIMEOUT" "$API_BASE/chat/completions" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d "$(jq -n \
-    --arg model "$MODEL" \
-    --arg system "$SYSTEM" \
-    --arg user "$USER_MSG" \
-    '{model: $model, messages: [{role: "system", content: $system}, {role: "user", content: $user}], max_tokens: 16384}')")
+  -d "@$TMPDIR_REQ/request.json")
+
+rm -rf "$TMPDIR_REQ"
 
 # Extract content
 CONTENT=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
