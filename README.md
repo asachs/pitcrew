@@ -85,7 +85,7 @@ Both environments share the same Beads coordination, `.pitcrew` context, `.pitcr
 Direct API call via curl. No dependencies beyond curl + jq + git + bd. Runs anywhere — containers, CI, your laptop. **3-6 seconds per mechanic.**
 
 ### `mechanic.sh`
-Uses [Aider](https://aider.chat) for the coding agent. More capable (repo-map, multi-file edits) but requires Python and takes ~30 seconds. Better for complex tasks.
+Uses [Aider](https://aider.chat) for the coding agent. Passes all `file:` labels from the bead to Aider, so it can read multiple files for context. Requires Python and takes ~30 seconds. In practice, Pitcrew decomposition creates one bead per file, so multi-file edits within a single mechanic are rare.
 
 ## Prerequisites
 

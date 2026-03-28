@@ -144,7 +144,7 @@ After all bays released:
 |------|------|---------|
 | `Tools/pitstop-auto.sh` | Auto pit stop | Decompose task + dispatch + monitor + release |
 | `Tools/mechanic-lite.sh` | Mechanic (fast) | Direct API call, 3-6s, curl only |
-| `Tools/mechanic.sh` | Mechanic (full) | Via Aider, 30s, multi-file capable |
+| `Tools/mechanic.sh` | Mechanic (full) | Via Aider, 30s, passes all file: labels |
 | `Tools/pitstop.sh` | Full pit stop | Dispatch + monitor + release with live output |
 | `Tools/release.sh` | Release | Merge worktree with conflict escalation |
 | `Tools/timing.sh` | Timing screen | Status dashboard |
