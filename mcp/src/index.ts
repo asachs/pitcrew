@@ -175,8 +175,9 @@ server.tool(
   async ({ title, description, priority, files }) => {
     const labels = (files || []).map((f) => `--label "file:${f}"`).join(" ");
     const prio = priority !== undefined ? `-p ${priority}` : "";
+    const escapedBody = description.replace(/"/g, '\\"');
     const output = run(
-      `${BD} create "${title}" -d "${description.replace(/"/g, '\\"')}" -t task ${prio} ${labels}`
+      `${BD} create --title "${title}" --body "${escapedBody}" ${prio} ${labels}`
     );
     return { content: [{ type: "text", text: output }] };
   }
@@ -212,7 +213,7 @@ server.tool(
     message: z.string().describe("Completion message"),
   },
   async ({ bead_id, message }) => {
-    const output = run(`${BD} close ${bead_id} -m "${message.replace(/"/g, '\\"')}"`);
+    const output = run(`${BD} update ${bead_id} --status closed`);
     return { content: [{ type: "text", text: output }] };
   }
 );
