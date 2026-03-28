@@ -90,10 +90,15 @@ Uses [Aider](https://aider.chat) for the coding agent. More capable (repo-map, m
 
 **CLI environment:**
 - [Beads](https://github.com/steveyegge/beads) (`bd` CLI) — work coordination
+  ```bash
+  go install github.com/steveyegge/beads/cmd/bd@latest
+  # or download binary from https://github.com/steveyegge/beads/releases
+  ```
 - Git 2.25+ (worktree support)
 - curl + jq (for mechanic-lite)
-- [Aider](https://aider.chat) (optional, for mechanic.sh)
-- A model API key (MiniMax, OpenRouter, DeepSeek, or local via Ollama)
+- [Aider](https://aider.chat) (optional, only for mechanic.sh — `pip install aider-chat`)
+- A model API key — at minimum `MINIMAX_API_KEY` for mechanics
+- `ANTHROPIC_API_KEY` (optional, for `pitstop-auto.sh` crew chief decomposition)
 
 **Copilot environment:**
 - [GitHub Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli) with agent mode

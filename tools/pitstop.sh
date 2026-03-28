@@ -1,4 +1,4 @@
-#!/run/current-system/sw/bin/bash
+#!/usr/bin/env bash
 # pitstop.sh — Run a full pit stop with live visibility
 #
 # Usage: pitstop.sh <repo-path> <bead-id> [<bead-id> ...]

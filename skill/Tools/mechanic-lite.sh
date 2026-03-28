@@ -1,4 +1,4 @@
-#!/run/current-system/sw/bin/bash
+#!/usr/bin/env bash
 # mechanic-lite.sh — Lightweight mechanic that calls the model API directly
 # No Aider dependency — just curl + jq + git. Runs anywhere.
 #
