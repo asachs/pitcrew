@@ -43,6 +43,7 @@ Shell scripts that dispatch mechanics via direct API calls or Aider. Orchestrate
 
 ```
 You (in Claude Code / terminal)
+  → tools/pitstop-auto.sh     (one-command: decompose + dispatch + merge)
   → tools/mechanic-lite.sh    (3-6s, curl + jq)
   → tools/mechanic.sh         (30s, via Aider)
   → tools/pitstop.sh          (parallel dispatch + live monitor)
@@ -57,7 +58,7 @@ An MCP server that exposes bay management and beads integration as tools for the
 
 ```
 Copilot CLI (crew chief)
-  → MCP tools: create_bay, list_bays, release_bay, create_bead, list_beads, close_bead
+  → MCP tools: create_bay, list_bays, release_bay, cleanup_bays, create_pit_call, list_pit_calls, claim_pit_call, close_pit_call, timing_screen, load_context, add_lesson
   → Background tasks: dispatches mechanics via Copilot's task(mode="background")
 ```
 
@@ -204,11 +205,11 @@ Failed verification creates an escalation bead instead of merging broken code.
 
 | Tool | Role | Speed | Deps |
 |------|------|-------|------|
-| `tools/pitstop-auto.sh` | **One-command pit stop** — auto-decompose + dispatch | 20-60s | Anthropic API key |
-| `tools/mechanic-lite.sh` | Mechanic (direct API) | 3-6s | curl, jq, git |
-| `tools/mechanic.sh` | Mechanic (via Aider) | ~30s | Python, Aider |
-| `tools/pitstop.sh` | Pit stop with manual beads | — | mechanic-lite |
-| `tools/release.sh` | Merge bay to main | instant | git |
+| `tools/pitstop-auto.sh` | **One-command pit stop** — auto-decompose + dispatch | 20-60s | Anthropic API key, bd, jq, curl |
+| `tools/mechanic-lite.sh` | Mechanic (direct API) | 3-6s | curl, jq, git, bd |
+| `tools/mechanic.sh` | Mechanic (via Aider) | ~30s | Python, Aider, bd, git |
+| `tools/pitstop.sh` | Pit stop with manual beads | — | mechanic-lite, bd, jq |
+| `tools/release.sh` | Merge bay to main | instant | git, bd |
 | `tools/timing.sh` | Status dashboard | instant | bd |
 | `tools/lesson.sh` | Add lesson (repo-local or `--global`) | instant | — |
 
@@ -251,7 +252,7 @@ export OPENAI_API_BASE="http://localhost:11434/v1"
 | `PITCREW_BD` | Path to `bd` binary (default: autodetect) |
 | `PITCREW_LANE` | Beads repo path (default: repo path if `.beads/` exists, else `~/pitlane`) |
 | `PITCREW_BAYS` | Worktree directory (default: `~/bays`) |
-| `PITCREW_MODEL` | Default model (default: `MiniMax-M2.5`) |
+| `PITCREW_MODEL` | Default model (default: `openai/MiniMax-M2.5`) |
 | `PITCREW_TIMEOUT` | Mechanic timeout in seconds (default: 300) |
 | `PITCREW_GLOBAL_LESSONS` | Global lessons file (default: `~/.claude/pitcrew-lessons`) |
 | `PITCREW_CHIEF_MODEL` | Model for pitstop-auto decomposition (default: `claude-sonnet-4-6`) |
@@ -328,9 +329,14 @@ The crew chief agent instructions are at `.github/agents/pitcrew.md`. Copilot lo
 | `create_bay` | Create a git worktree (bay) for a pit call |
 | `list_bays` | List all active bays with status |
 | `release_bay` | Merge bay to main and clean up |
-| `create_bead` | Create a pit call (bead) in the tracker |
-| `list_beads` | List open/in-progress beads |
-| `close_bead` | Mark a bead as completed |
+| `cleanup_bays` | Remove all pit worktrees and branches |
+| `create_pit_call` | Create a new pit call (bead) for tracking |
+| `list_pit_calls` | List all pit calls with their status |
+| `claim_pit_call` | Claim a pit call (set to in_progress) |
+| `close_pit_call` | Close a completed pit call |
+| `timing_screen` | Show pit stop status dashboard |
+| `load_context` | Load `.pitcrew` and `.pitcrew-lessons` for prompt injection |
+| `add_lesson` | Add a lesson learned to `.pitcrew-lessons` |
 
 ## Self-Improvement (.pitcrew-lessons)
 
@@ -368,6 +374,7 @@ pitcrew/
 │   ├── src/index.ts              ← MCP server (bay + beads tools)
 │   ├── .mcp.json                 ← Copilot MCP config
 │   ├── package.json
+│   ├── package-lock.json
 │   ├── tsconfig.json
 │   └── start.js                  ← MCP server entry point
 │
@@ -382,6 +389,10 @@ pitcrew/
 │   └── parallel-pitstop.md       ← Walkthrough example
 │
 ├── .pitcrew-lessons              ← Self-improvement lessons
+├── .gitignore
+├── setup.sh                      ← Install dependencies + first-use config
+├── test.sh                       ← End-to-end smoke test
+├── LICENSE
 └── README.md
 ```
 
@@ -393,6 +404,7 @@ These live in **your project repo**, not in pitcrew:
 |------|---------|---------|
 | `.pitcrew` | Project context injected into mechanic prompts | CLI + Copilot |
 | `.pitcrew-verify` | Pre-merge verification script | CLI + Copilot |
+| `.pitcrew-lessons` | Accumulated lessons injected into mechanic prompts | CLI + Copilot |
 
 ## Inspired By
 
